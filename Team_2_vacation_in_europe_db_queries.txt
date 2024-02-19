@@ -1,0 +1,124 @@
+USE vacation_in_europe;
+
+# Query 1: Show the most popular destinations
+CREATE OR REPLACE VIEW popular_destinations AS
+SELECT 	Country_Name AS "Country", COUNT(Country_Name) AS "Number of flights arriving"
+FROM flights f 
+	JOIN airports a
+		ON f.Arrival_Airport = a.Airport_ID
+	JOIN countries c 
+		USING(Country_ID)
+GROUP BY Country_Name
+ORDER BY COUNT(Country_Name) DESC;
+
+
+# Query 2: Show ticket price for flights departing from London
+CREATE OR REPLACE VIEW flight_ticket_price_london AS
+SELECT 	departure.City AS "City", departure.Airport_name AS "Airport", air.Airline_Name AS "Airline",
+				CONCAT(arrival.City, ", ", c.Country_Name) AS "Destination",
+				DATE_FORMAT(f.Departure_Time, "%a, %b %d, %Y") AS "Departure Date",
+				DATE_FORMAT(f.Departure_Time, "%H:%i") AS "Departure Time",
+                DATE_FORMAT(f.Arrival_Time, "%H:%i") AS "Arrival Time",
+                CONCAT("$", b.Ticket_Price - 0.01) AS "Ticket Price"
+FROM 		flights f JOIN bookings b USING(Flight_ID)
+				JOIN airports departure ON departure.Airport_ID = f.Departure_Airport
+                JOIN airports arrival ON arrival.Airport_ID = f.Arrival_Airport
+                JOIN countries c ON c.Country_ID = arrival.Country_ID
+                JOIN airlines air ON air.Airline_ID = f.Airline_ID
+WHERE 	Departure_Airport IN 
+				(SELECT Airport_ID
+				FROM airports
+				WHERE City = "London")
+                
+ORDER BY departure.Airport_name, b.Ticket_Price DESC;
+
+
+# Query 3: Show a list of passengers that require moving assistance
+CREATE OR REPLACE VIEW passangers_moving_assistance AS
+SELECT 	Accommodation_Type, CONCAT(First_Name, " ", Last_Name) AS "Name"
+FROM 	customers JOIN customer_accommodations USING(Customer_ID)
+				JOIN accommodations USING(Accommodation_ID)
+WHERE 	Accommodation_Type = "Moving Assistance"
+
+ORDER BY First_Name, Last_Name;
+
+
+# Query 4: Details of a passenger whose nationality is german and departure airport is Glasgow Airport
+CREATE OR REPLACE VIEW german_passanger_glasgow_airport AS
+SELECT c.First_Name, c.Last_Name, a.Airline_Name, f.Flight_Number, 
+       dep_airport.Airport_Name AS Departure_Airport, 
+       arr_airport.Airport_Name AS Arrival_Airport, 
+       f.Departure_Time, f.Arrival_Time, lt.Luggage_Type, l.Weight
+FROM Customers AS c
+	JOIN Bookings AS b ON c.Customer_ID = b.Customer_ID
+	JOIN Flights AS f ON b.Flight_ID = f.Flight_ID
+	JOIN Airlines AS a ON f.Airline_ID = a.Airline_ID
+	JOIN Airports AS dep_airport ON f.Departure_Airport = dep_airport.Airport_ID
+	JOIN Airports AS arr_airport ON f.Arrival_Airport = arr_airport.Airport_ID
+	JOIN Luggages AS l ON b.Booking_ID = l.Booking_ID
+	JOIN Luggage_Types AS lt ON l.Luggage_Type_ID = lt.Luggage_Type_ID
+	JOIN Countries AS cn ON c.Nationality_ID = cn.Country_ID
+WHERE cn.Country_Name = 'Germany' 
+AND dep_airport.Airport_Name = 'Glasgow Airport';
+
+
+# Query 5: Details of a passenger who travelled from Zurich to Rome
+CREATE OR REPLACE VIEW passangers_zurich_to_rome AS
+SELECT 
+    c.First_Name, 
+    c.Last_Name, 
+    a.Airline_Name, 
+    f.Flight_Number, 
+    dep_airport.Airport_name AS Departure_Airport,
+    arr_airport.Airport_name AS Arrival_Airport,
+    f.Departure_Time, 
+    f.Arrival_Time, 
+    b.Seat_Number, 
+    b.Ticket_Price, 
+    ac.Accommodation_Type,
+    lt.Luggage_Type, 
+    l.Weight, 
+    l.Luggage_Price
+FROM Customers c
+	JOIN 
+		Bookings b ON c.Customer_ID = b.Customer_ID
+	JOIN 
+		Flights f ON b.Flight_ID = f.Flight_ID
+	JOIN 
+		Airlines a ON f.Airline_ID = a.Airline_ID
+	JOIN 
+		Airports dep_airport ON f.Departure_Airport = dep_airport.Airport_ID
+	JOIN 
+		Airports arr_airport ON f.Arrival_Airport = arr_airport.Airport_ID
+	JOIN 
+		Luggages l ON b.Booking_ID = l.Booking_ID
+	JOIN 
+		Luggage_Types lt ON l.Luggage_Type_ID = lt.Luggage_Type_ID
+	JOIN 
+		Customer_Accommodations ca ON c.Customer_ID = ca.Customer_ID
+	JOIN 
+		Accommodations ac ON ca.Accommodation_ID = ac.Accommodation_ID
+WHERE 
+    dep_airport.City = 'Zurich' AND
+    arr_airport.City = 'Rome';
+
+
+# Query 6: Average Price for flights going to different country (arrival)
+CREATE OR REPLACE VIEW arriving_country_avg_price AS
+SELECT country_name AS "Arriving Country Name", 
+	CONCAT("$ ", FORMAT(AVG(Ticket_Price),2)) AS "Average Ticket Price"
+FROM airports a
+	JOIN countries c USING(country_id)
+    JOIN flights f ON a.airport_id = f.arrival_Airport
+    JOIN bookings b USING(flight_id)
+GROUP BY country_name
+ORDER BY AVG(Ticket_Price) DESC;
+
+# Query 7: Customer's information on amount of flights done and the total price spent
+CREATE OR REPLACE VIEW customer_aggregate_flight_info AS
+SELECT CONCAT(first_name, " ", last_name) AS Customer_Name, 
+	COUNT(flight_id) AS No_of_Flights, CONCAT("$ ", FORMAT(SUM(Ticket_Price),2)) AS Total_Price_Paid
+FROM customers
+	JOIN bookings USING(customer_id)
+GROUP BY customer_id
+ORDER BY No_of_Flights DESC, SUM(Ticket_Price) DESC;
